@@ -9,157 +9,53 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    name: Build for Android
+    runs-on: ubuntu-latest
     timeout-minutes: 90
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-
     - name: Cache Buildozer global directory
       uses: actions/cache@v3
       with:
-        path: ~/.buildozer
-        key: ${{ runner.os }}-buildozer-global-${{ hashFiles('buildozer.spec') }}
-        restore-keys: |
-          ${{ runner.os }}-buildozer-global-
-
-    - name: Cache Buildozer local directory
-      uses: actions/cache@v3
-      with:
-        path: .buildozer
-        key: ${{ runner.os }}-buildozer-local-${{ hashFiles('buildozer.spec') }}-${{ hashFiles('**/*.py') }}
-        restore-keys: |
-          ${{ runner.os }}-buildozer-local-${{ hashFiles('buildozer.spec') }}-
-          ${{ runner.os }}-buildozer-local-
-
-    - name: Cache Python packages
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
-
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update -qq
-        sudo apt-get install -y \
-          openjdk-11-jdk \
-          build-essential \
-          git \
-          zip \
-          unzip \
-          python3-pip \
-          autoconf \
-          libtool \
-          pkg-config \
-          zlib1g-dev \
-          libncurses5-dev \
-          libncursesw5-dev \
-          cmake \
-          libffi-dev \
-          libssl-dev \
-          ccache \
-          python3-dev \
-          libsqlite3-dev \
-          sqlite3 \
-          bzip2 \
-          libbz2-dev \
-          libreadline-dev \
-          llvm \
-          libncursesw5-dev \
-          xz-utils \
-          tk-dev \
-          libxml2-dev \
-          libxmlsec1-dev \
-          liblzma-dev
-        
-        # Set Java 11 as default
-        sudo update-alternatives --set java /usr/lib/jvm/java-11-openjdk-amd64/bin/java
-        sudo update-alternatives --set javac /usr/lib/jvm/java-11-openjdk-amd64/bin/javac
-        export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
-        echo "JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64" >> $GITHUB_ENV
-
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip setuptools wheel
-        pip install --upgrade Cython==0.29.33
-        pip install buildozer
-
-    - name: Setup Gradle
-      run: |
-        mkdir -p ~/.gradle
-        echo "org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m" >> ~/.gradle/gradle.properties
-        echo "org.gradle.daemon=false" >> ~/.gradle/gradle.properties
-        echo "android.useAndroidX=true" >> ~/.gradle/gradle.properties
-
-    - name: Accept Android licenses
-      run: |
-        mkdir -p ~/.android
-        echo "export ANDROID_SDK_ROOT=/usr/lib/android-sdk" >> ~/.bashrc
-        yes | sudo apt-get install -y google-android-platform-tools-installer || true
+        path: .buildozer_global
+        key: buildozer-global-${{ hashFiles('buildozer.spec') }}
 
     - name: Build with Buildozer
-      run: |
-        yes | buildozer -v android debug 2>&1 | tee build.log
-        BUILD_EXIT=$?
-        echo "Buildozer exit code: $BUILD_EXIT"
-        if [ $BUILD_EXIT -ne 0 ]; then
-          echo "❌ Buildozer failed with exit code $BUILD_EXIT"
-          echo "Last 150 lines of build log:"
-          tail -150 build.log
-          exit 1
-        fi
-        echo "✓ Buildozer completed"
+      uses: ArtemSBulgakov/buildozer-action@v1
+      id: buildozer
+      with:
+        command: buildozer android debug
+        buildozer_version: stable
 
-    - name: Search for APK files
-      run: |
-        echo "Searching for APK files in entire project..."
-        find . -name "*.apk" -type f 2>/dev/null || echo "No APK files found anywhere"
-        echo ""
-        echo "Checking .buildozer directory:"
-        ls -lah .buildozer/android/platform/build-*/dists/*/build/outputs/apk/debug/ 2>/dev/null || echo "Standard APK location not found"
-        echo ""
-        echo "Contents of bin directory:"
-        ls -lah bin/ 2>/dev/null || echo "bin directory doesn't exist"
-        echo ""
-        echo "Contents of .buildozer/android/platform/:"
-        ls -lah .buildozer/android/platform/ 2>/dev/null || echo ".buildozer/android/platform/ doesn't exist"
-
-    - name: Check for Gradle logs on failure
-      if: failure()
-      run: |
-        echo "Searching for Gradle build logs..."
-        find .buildozer -name "*.log" -type f 2>/dev/null | head -10
-        echo ""
-        echo "Looking for Gradle failure logs:"
-        find .buildozer -path "*/gradle*" -name "*.log" -type f 2>/dev/null | while read logfile; do
-          echo "=== $logfile ==="
-          tail -100 "$logfile"
-        done
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ccddatalogger-apk
+        path: ${{ steps.buildozer.outputs.filename }}
 
     - name: Copy APK to bin directory
+      if: success()
       run: |
         mkdir -p bin
-        APK_FOUND=0
-        
-        # Search for APK in buildozer output directories
-        for apk in $(find .buildozer -name "*.apk" -type f 2>/dev/null); do
-          echo "Found APK: $apk"
-          cp "$apk" bin/
-          APK_FOUND=1
-        done
-        
-        if [ $APK_FOUND -eq 0 ]; then
-          echo "❌ No APK files found in .buildozer directory"
-          echo "Showing end of build log:"
-          tail -200 build.log
+        if [ -f "${{ steps.buildozer.outputs.filename }}" ]; then
+          cp "${{ steps.buildozer.outputs.filename }}" bin/
+          echo "✓ APK copied to bin directory"
+          ls -lh bin/
+        else
+          echo "⚠ APK file not found"
+        fi
+
+    - name: Build log on failure
+      if: failure()
+      run: |
+        echo "Build failed. Checking for logs..."
+        if [ -f ".buildozer/android/platform/build-arm64-v8a/build.log" ]; then
+          echo "Last 200 lines of build log:"
+          tail -200 .buildozer/android/platform/build-arm64-v8a/build.log
+        fi
           exit 1
         fi
         
