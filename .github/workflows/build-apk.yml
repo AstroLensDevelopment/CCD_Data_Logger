@@ -29,6 +29,8 @@ jobs:
       with:
         command: buildozer android debug
         buildozer_version: stable
+        repository_root: .
+        workdir: .
 
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
