@@ -7,10 +7,11 @@ from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button, ButtonBehavior
 from kivy.uix.label import Label
-from kivy.uix.spinner import Spinner
+from kivy.uix.spinner import Spinner, SpinnerOption
 from kivy.uix.textinput import TextInput
 from kivy.uix.scrollview import ScrollView
 from kivy.clock import Clock
+from kivy.core.window import Window
 from kivy.utils import platform, get_color_from_hex
 from kivy.properties import StringProperty, BooleanProperty, ListProperty
 from kivy.graphics import Color, RoundedRectangle
@@ -32,22 +33,19 @@ class RoundedButton(Button):
         # Define colors
         self.normal_color = get_color_from_hex('#fecb48')
         self.pressed_color = get_color_from_hex('#ffc531')
-        self.disabled_color = get_color_from_hex('#808080')  # Gray for disabled
+        # Disabled should be a neutral gray
+        self.disabled_color = get_color_from_hex('#9e9e9e')
         
         self.background_normal = ''
         self.background_down = ''
         self.background_disabled_normal = ''
         self.background_color = (0, 0, 0, 0)  # Transparent
         
-        # Set text color to black
-        self.color = (0, 0, 0, 1)
-        
-        self.bind(pos=self.update_canvas, size=self.update_canvas, 
-                  disabled=self.update_canvas, state=self.update_canvas)
+        self.bind(pos=self.update_canvas, size=self.update_canvas,
+              disabled=self.update_canvas, state=self.update_canvas)
         self.update_canvas()
     
-    def update_canvas(self, *args):
-        self.canvas.before.clear()
+    def update_canvas(self, *args):self.canvas.before.clear()
         with self.canvas.before:
             if self.disabled:
                 Color(*self.disabled_color)
@@ -57,6 +55,128 @@ class RoundedButton(Button):
                 Color(*self.normal_color)
             
             RoundedRectangle(pos=self.pos, size=self.size, radius=[15])
+        # Text color: black on yellow/pressed, white on disabled
+        if self.disabled:
+            self.color = (1, 1, 1, 1)
+        else:
+            self.color = (0, 0, 0, 1)
+
+
+class OverlayRoundedButton(RoundedButton):
+    """RoundedButton that overlays a Label so text remains visible (black) when disabled.
+
+    Use this for buttons that must show their text at all times even when disabled.
+    The underlying Button's `text` is cleared to avoid duplicate rendering; the overlay
+    Label is positioned and sized to match the button.
+    """
+
+    def __init__(self, **kwargs):
+        # extract the text so we can use it for the overlay
+        overlay_text = kwargs.pop('text', '')
+        super(OverlayRoundedButton, self).__init__(**kwargs)
+
+        # clear the base widget text so default drawing doesn't conflict
+        self.text = ''
+
+        # create overlay label which will always show black text
+        self.overlay = Label(
+            text=overlay_text,
+            color=(0, 0, 0, 1),
+            halign='center',
+            valign='middle'
+        )
+        # ensure text is centered inside the label
+        self.overlay.bind(size=self.overlay.setter('text_size'))
+
+        # add overlay as a child so it renders on top of the button canvas
+        self.add_widget(self.overlay)
+
+        # keep overlay positioned and sized with the button
+        self.bind(pos=self._update_overlay, size=self._update_overlay)
+
+    def _update_overlay(self, *args):
+        self.overlay.pos = self.pos
+        self.overlay.size = self.size
+
+    def set_overlay_text(self, text):
+        self.overlay.text = text
+
+
+class RoundedSpinner(Spinner):
+    """Spinner with rounded background matching RoundedButton styling"""
+    def __init__(self, **kwargs):
+        super(RoundedSpinner, self).__init__(**kwargs)
+        self.normal_color = get_color_from_hex('#fecb48')
+        self.pressed_color = get_color_from_hex('#ffc531')
+        self.disabled_color = get_color_from_hex('#9e9e9e')
+
+        # remove any default background images/colors so our canvas shows
+        self.background_normal = ''
+        self.background_down = ''
+        self.background_disabled_normal = ''
+        self.background_color = (0, 0, 0, 0)
+        self.color = (0, 0, 0, 1)
+
+        self._pressed = False
+        self.bind(pos=self.update_canvas, size=self.update_canvas, disabled=self.update_canvas, state=self.update_canvas)
+        self.update_canvas()
+
+    def on_touch_down(self, touch):
+        if self.collide_point(*touch.pos):
+            self._pressed = True
+            self.update_canvas()
+        return super(RoundedSpinner, self).on_touch_down(touch)
+
+    def on_touch_up(self, touch):
+        if self._pressed:
+            self._pressed = False
+            # update after touch up to show released state
+            Clock.schedule_once(lambda dt: self.update_canvas(), 0)
+        return super(RoundedSpinner, self).on_touch_up(touch)
+
+    def update_canvas(self, *args):
+        self.canvas.before.clear()
+        with self.canvas.before:
+            if self.disabled:
+                Color(*self.disabled_color)
+            elif getattr(self, 'state', '') == 'down' or getattr(self, '_pressed', False):
+                Color(*self.pressed_color)
+            else:
+                Color(*self.normal_color)
+            RoundedRectangle(pos=self.pos, size=self.size, radius=[15])
+
+
+class RoundedSpinnerOption(SpinnerOption):
+    """Dropdown option for Spinner styled like RoundedButton"""
+    def __init__(self, **kwargs):
+        super(RoundedSpinnerOption, self).__init__(**kwargs)
+        self.normal_color = get_color_from_hex('#fecb48')
+        self.pressed_color = get_color_from_hex('#ffc531')
+        self.disabled_color = get_color_from_hex('#9e9e9e')
+
+        # remove default backgrounds and ensure visuals come from canvas
+        self.background_normal = ''
+        self.background_down = ''
+        self.background_disabled_normal = ''
+        self.bind(pos=self.update_canvas, size=self.update_canvas, state=self.update_canvas, disabled=self.update_canvas)
+        self.update_canvas()
+
+    def update_canvas(self, *args):
+        self.canvas.before.clear()
+        with self.canvas.before:
+            if self.disabled:
+                Color(*self.disabled_color)
+            elif getattr(self, 'state', '') == 'down':
+                Color(*self.pressed_color)
+            else:
+                Color(*self.normal_color)
+            RoundedRectangle(pos=self.pos, size=self.size, radius=[15])
+
+        # Text color: black on yellow/pressed, white on disabled
+        if self.disabled:
+            self.color = (1, 1, 1, 1)
+        else:
+            self.color = (0, 0, 0, 1)
 
 
 class CCDDataLoggerApp(App):
@@ -65,21 +185,31 @@ class CCDDataLoggerApp(App):
     
     def build(self):
         self.title = "CCD Data Logger"
+        # Set default window size to 19.5:9 aspect ratio on desktop
+        # (has no effect on Android fullscreen)
+        if platform != 'android':
+            ratio = 9.0 / 19.5
+            desired_width = 450
+            desired_height = int(desired_width / ratio)
+            Window.size = (desired_width, desired_height)
         
         # Initialize managers
         self.bt_manager = BluetoothManager()
         self.usb_manager = USBManager()
         self.data_handler = DataHandler()
         self.stm32_controller = STM32Controller()
+        # Track whether a device was found during scan
+        self.device_found = False
         
         # Main layout
         self.root = BoxLayout(orientation='vertical', padding=10, spacing=10)
         
         # Status bar
+        # initial status color: nothing connected -> #ffc200
         self.status_label = Label(
             text=self.status_text,
             size_hint=(1, 0.1),
-            color=get_color_from_hex('#ffc200')  # Orange when disconnected
+            color=get_color_from_hex('#ffc200')
         )
         self.root.add_widget(self.status_label)
         
@@ -87,11 +217,17 @@ class CCDDataLoggerApp(App):
         connection_layout = BoxLayout(size_hint=(1, 0.1), spacing=10)
         connection_layout.add_widget(Label(text="Connection:", size_hint=(0.3, 1)))
         
-        self.connection_spinner = Spinner(
+        self.connection_spinner = RoundedSpinner(
             text='Bluetooth SPP',
             values=('Bluetooth SPP', 'USB Serial'),
-            size_hint=(0.7, 1)
+            size_hint=(0.7, 1),
+            option_cls=RoundedSpinnerOption
         )
+        # Style spinner to match yellow buttons (same as averages spinner)
+        self.connection_spinner.background_normal = ''
+        self.connection_spinner.background_down = ''
+        self.connection_spinner.background_disabled_normal = ''
+        self.connection_spinner.color = (0, 0, 0, 1)
         connection_layout.add_widget(self.connection_spinner)
         self.root.add_widget(connection_layout)
         
@@ -99,12 +235,17 @@ class CCDDataLoggerApp(App):
         firmware_layout = BoxLayout(size_hint=(1, 0.1), spacing=10)
         firmware_layout.add_widget(Label(text="Firmware:", size_hint=(0.3, 1)))
         
-        self.firmware_spinner = Spinner(
+        self.firmware_spinner = RoundedSpinner(
             text='STM32F40x',
             values=('STM32F40x', 'STM32F103'),
-            size_hint=(0.7, 1)
+            size_hint=(0.7, 1),
+            option_cls=RoundedSpinnerOption
         )
         self.firmware_spinner.bind(text=self.on_firmware_changed)
+        self.firmware_spinner.background_normal = ''
+        self.firmware_spinner.background_down = ''
+        self.firmware_spinner.background_disabled_normal = ''
+        self.firmware_spinner.color = (0, 0, 0, 1)
         firmware_layout.add_widget(self.firmware_spinner)
         self.root.add_widget(firmware_layout)
         
@@ -112,11 +253,16 @@ class CCDDataLoggerApp(App):
         device_layout = BoxLayout(size_hint=(1, 0.1), spacing=10)
         device_layout.add_widget(Label(text="Device:", size_hint=(0.3, 1)))
         
-        self.device_spinner = Spinner(
+        self.device_spinner = RoundedSpinner(
             text='Select Device',
             values=('Select Device',),
-            size_hint=(0.5, 1)
+            size_hint=(0.5, 1),
+            option_cls=RoundedSpinnerOption
         )
+        self.device_spinner.background_normal = ''
+        self.device_spinner.background_down = ''
+        self.device_spinner.background_disabled_normal = ''
+        self.device_spinner.color = (0, 0, 0, 1)
         device_layout.add_widget(self.device_spinner)
         
         self.scan_button = RoundedButton(text="Scan", size_hint=(0.2, 1))
@@ -131,7 +277,7 @@ class CCDDataLoggerApp(App):
         self.connect_button.bind(on_press=self.connect_device)
         button_layout.add_widget(self.connect_button)
         
-        self.disconnect_button = RoundedButton(text="Disconnect", disabled=True)
+        self.disconnect_button = OverlayRoundedButton(text="Disconnect", disabled=True)
         self.disconnect_button.bind(on_press=self.disconnect_device)
         button_layout.add_widget(self.disconnect_button)
         self.root.add_widget(button_layout)
@@ -148,7 +294,7 @@ class CCDDataLoggerApp(App):
         )
         exposure_layout.add_widget(self.exposure_input)
         
-        self.apply_exposure_button = RoundedButton(text="Apply", size_hint=(0.2, 1), disabled=True)
+        self.apply_exposure_button = OverlayRoundedButton(text="Apply", size_hint=(0.2, 1), disabled=True)
         self.apply_exposure_button.bind(on_press=self.apply_exposure)
         exposure_layout.add_widget(self.apply_exposure_button)
         self.root.add_widget(exposure_layout)
@@ -157,10 +303,11 @@ class CCDDataLoggerApp(App):
         averages_layout = BoxLayout(size_hint=(1, 0.1), spacing=10)
         averages_layout.add_widget(Label(text="Averages:", size_hint=(0.3, 1)))
         
-        self.averages_spinner = Spinner(
+        self.averages_spinner = RoundedSpinner(
             text='1',
             values=tuple(str(i) for i in [1, 2, 5, 10, 20, 50, 100, 255]),
-            size_hint=(0.7, 1)
+            size_hint=(0.7, 1),
+            option_cls=RoundedSpinnerOption
         )
         self.averages_spinner.bind(text=self.on_averages_changed)
         averages_layout.add_widget(self.averages_spinner)
@@ -177,15 +324,13 @@ class CCDDataLoggerApp(App):
         # Data controls
         data_layout = BoxLayout(size_hint=(1, 0.1), spacing=10)
         
-        self.start_capture_button = RoundedButton(text="Start Capture", disabled=True)
+        self.start_capture_button = OverlayRoundedButton(text="Start Capture", disabled=True)
         self.start_capture_button.bind(on_press=self.start_capture)
         data_layout.add_widget(self.start_capture_button)
         
-        self.stop_capture_button = RoundedButton(text="Stop Capture", disabled=True)
-        self.stop_capture_button.bind(on_press=self.stop_capture)
-        data_layout.add_widget(self.stop_capture_button)
+        # single-capture mode: no Stop button
         
-        self.save_button = RoundedButton(text="Save Data", disabled=True)
+        self.save_button = OverlayRoundedButton(text="Save Data", disabled=True)
         self.save_button.bind(on_press=self.save_data)
         data_layout.add_widget(self.save_button)
         self.root.add_widget(data_layout)
@@ -234,18 +379,34 @@ class CCDDataLoggerApp(App):
             devices = self.bt_manager.scan_devices()
             if devices:
                 self.device_spinner.values = list(devices.keys())
-                self.status_label.color = (1, 1, 1, 1)  # White when devices found
+                # select first discovered device by default
+                try:
+                    self.device_spinner.text = list(devices.keys())[0]
+                except Exception:
+                    pass
+                self.device_found = True
+                # set status color to white when devices found
+                self.status_label.color = (1, 1, 1, 1)
                 self.update_display(f"Found {len(devices)} Bluetooth devices")
             else:
+                self.device_found = False
+                self.status_label.color = get_color_from_hex('#ffc200')
                 self.update_display("No Bluetooth devices found")
                 
         elif connection_type == 'USB Serial':
             devices = self.usb_manager.scan_devices()
             if devices:
                 self.device_spinner.values = devices
-                self.status_label.color = (1, 1, 1, 1)  # White when devices found
+                try:
+                    self.device_spinner.text = devices[0]
+                except Exception:
+                    pass
+                self.device_found = True
+                self.status_label.color = (1, 1, 1, 1)
                 self.update_display(f"Found {len(devices)} USB devices")
             else:
+                self.device_found = False
+                self.status_label.color = get_color_from_hex('#ffc200')
                 self.update_display("No USB devices found")
     
     def connect_device(self, instance):
@@ -275,7 +436,6 @@ class CCDDataLoggerApp(App):
         if success:
             self.is_connected = True
             self.status_text = "Connected"
-            self.status_label.color = (1, 1, 1, 1)  # White when connected
             self.update_display("Connected successfully!")
             self.connect_button.disabled = True
             self.disconnect_button.disabled = False
@@ -301,13 +461,11 @@ class CCDDataLoggerApp(App):
         
         self.is_connected = False
         self.status_text = "Disconnected"
-        self.status_label.color = get_color_from_hex('#ffc200')  # Orange when disconnected
         self.update_display("Disconnected")
         
         self.connect_button.disabled = False
         self.disconnect_button.disabled = True
         self.start_capture_button.disabled = True
-        self.stop_capture_button.disabled = True
         self.save_button.disabled = True
         self.apply_exposure_button.disabled = True
         self.device_spinner.disabled = False
@@ -315,13 +473,24 @@ class CCDDataLoggerApp(App):
         self.scan_button.disabled = False
     
     def start_capture(self, instance):
-        """Start capturing data"""
+        """Capture a single averaged frame (or single frame if averages=1)."""
+        if not self.is_connected:
+            self.update_display("Not connected")
+            return
+
+        # Prepare for single capture
+        self.data_handler.clear_buffer()
         self.data_handler.start_capture()
-        self.update_display("Capturing data...")
+        self.update_display("Capturing single frame...")
         self.start_capture_button.disabled = True
-        self.stop_capture_button.disabled = False
-        self.save_button.disabled = False
-        
+        self.save_button.disabled = True
+
+        # Send STM32 configuration (includes averages)
+        self.send_stm32_config()
+
+        # mark single-capture mode so we stop reading after first frame
+        self._single_capture_mode = True
+
         # Start reading data
         connection_type = self.connection_spinner.text
         if connection_type == 'Bluetooth SPP':
@@ -330,25 +499,63 @@ class CCDDataLoggerApp(App):
             self.usb_manager.start_reading(self.on_data_received)
     
     def stop_capture(self, instance):
-        """Stop capturing data"""
+        # Deprecated: single-capture mode no longer uses a Stop button.
+        # Keep method for compatibility but perform a safe stop.
         connection_type = self.connection_spinner.text
         if connection_type == 'Bluetooth SPP':
-            self.bt_manager.stop_reading()
+            try:
+                self.bt_manager.stop_reading()
+            except Exception:
+                pass
         elif connection_type == 'USB Serial':
-            self.usb_manager.stop_reading()
-        
-        self.data_handler.stop_capture()
-        self.update_display("Capture stopped")
+            try:
+                self.usb_manager.stop_reading()
+            except Exception:
+                pass
+
+        try:
+            self.data_handler.stop_capture()
+        except Exception:
+            pass
+
+        self._single_capture_mode = False
         self.start_capture_button.disabled = False
-        self.stop_capture_button.disabled = True
     
     def on_data_received(self, data):
         """Callback when data is received"""
+        # Add incoming data (thread-safe; data_handler uses a lock)
         self.data_handler.add_data(data)
-        
-        # Update display (limit to last few lines)
-        display_text = self.data_handler.get_display_text(max_lines=20)
-        Clock.schedule_once(lambda dt: self.update_data_display(display_text), 0)
+
+        # Prepare UI update on main thread
+        def _finish_and_update(dt=None):
+            # If in single-capture mode, stop reading and finish capture
+            if getattr(self, '_single_capture_mode', False):
+                connection_type = self.connection_spinner.text
+                try:
+                    if connection_type == 'Bluetooth SPP':
+                        self.bt_manager.stop_reading()
+                    elif connection_type == 'USB Serial':
+                        self.usb_manager.stop_reading()
+                except Exception:
+                    pass
+
+                try:
+                    self.data_handler.stop_capture()
+                except Exception:
+                    pass
+
+                self._single_capture_mode = False
+                # Enable Save and Start buttons on the UI
+                self.save_button.disabled = False
+                self.start_capture_button.disabled = False
+                self.update_display("Capture complete")
+
+            # Update display with the latest buffered data (safe on main thread)
+            display_text = self.data_handler.get_display_text(max_lines=20)
+            self.update_data_display(display_text)
+
+        # Schedule UI updates on the main Kivy thread
+        Clock.schedule_once(_finish_and_update, 0)
     
     def update_data_display(self, text):
         """Update data display on main thread"""
@@ -473,13 +680,18 @@ class CCDDataLoggerApp(App):
     def update_status(self, dt):
         """Update status label"""
         self.status_label.text = f"Status: {self.status_text}"
-        
-        # Update color based on connection status
+
+        # Color precedence:
+        # 1) connected -> green
+        # 2) device found (scanned) -> white
+        # 3) nothing found / idle -> yellow (#ffc200)
         if self.is_connected:
-            self.status_label.color = (0, 1, 0, 1)  # Green
+            self.status_label.color = (0, 1, 0, 1)  # Green when connected
+        elif getattr(self, 'device_found', False):
+            self.status_label.color = (1, 1, 1, 1)  # White when devices were found
         else:
-            self.status_label.color = (1, 0, 0, 1)  # Red
-        
+            self.status_label.color = get_color_from_hex('#ffc200')
+
         # Update timing display if connected
         if self.is_connected:
             self.update_timing_display()
