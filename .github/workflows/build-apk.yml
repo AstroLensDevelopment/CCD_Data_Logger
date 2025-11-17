@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04  # Use Ubuntu 22.04 for better compatibility
+    runs-on: ubuntu-22.04
 
     steps:
     - name: Checkout code
@@ -20,6 +20,12 @@ jobs:
       with:
         python-version: '3.10'
 
+    - name: Cache Buildozer global directory
+      uses: actions/cache@v3
+      with:
+        path: ~/.buildozer
+        key: buildozer-${{ hashFiles('buildozer.spec') }}
+
     - name: Install system dependencies
       run: |
         sudo apt-get update
@@ -29,21 +35,39 @@ jobs:
           libncurses5-dev libncursesw5-dev \
           cmake libffi-dev libssl-dev \
           build-essential ccache libltdl-dev \
-          libffi-dev libssl-dev python3-dev
+          python3-dev
 
-    - name: Install Buildozer
+    - name: Install Buildozer and dependencies
       run: |
-        pip install --upgrade pip
+        pip install --upgrade pip setuptools wheel
         pip install buildozer cython==0.29.33
+        pip install kivy
+
+    - name: Make buildozer directory writable
+      run: |
+        mkdir -p ~/.buildozer
+        chmod -R 777 ~/.buildozer || true
 
     - name: Build APK with Buildozer
       run: |
-        yes | buildozer android debug
-      env:
-        ANDROID_SDK_ROOT: /opt/android-sdk
-        ANDROID_HOME: /opt/android-sdk
+        buildozer -v android debug 2>&1 | tee build.log
+      continue-on-error: false
+
+    - name: Upload build log on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-log
+        path: build.log
+        retention-days: 7
+
+    - name: List bin directory
+      run: |
+        echo "Contents of bin directory:"
+        ls -lah bin/ || echo "bin directory not found"
 
     - name: Upload APK artifact
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: ccddatalogger-apk
