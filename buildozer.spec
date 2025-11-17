@@ -20,7 +20,7 @@ version = 1.0.0
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3,kivy,pyjnius,android,usb4a,usbserial4a
+requirements = python3,kivy==2.2.1,pyjnius
 
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
@@ -176,6 +176,9 @@ p4a.branch = master
 
 # (str) Bootstrap to use for android builds
 p4a.bootstrap = sdl2
+
+# (int) Log level (0 = error only, 1 = info, 2 = debug)
+log_level = 2
 
 # (int) overrides automatic versionCode computation (used in build.gradle)
 # this is not the same as app version and should only be edited if you know what you're doing
