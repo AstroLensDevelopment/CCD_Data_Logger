@@ -132,6 +132,18 @@ jobs:
         echo "Contents of .buildozer/android/platform/:"
         ls -lah .buildozer/android/platform/ 2>/dev/null || echo ".buildozer/android/platform/ doesn't exist"
 
+    - name: Check for Gradle logs on failure
+      if: failure()
+      run: |
+        echo "Searching for Gradle build logs..."
+        find .buildozer -name "*.log" -type f 2>/dev/null | head -10
+        echo ""
+        echo "Looking for Gradle failure logs:"
+        find .buildozer -path "*/gradle*" -name "*.log" -type f 2>/dev/null | while read logfile; do
+          echo "=== $logfile ==="
+          tail -100 "$logfile"
+        done
+
     - name: Copy APK to bin directory
       run: |
         mkdir -p bin
