@@ -5,68 +5,114 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-22.04
+    timeout-minutes: 90
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Python
+    - name: Set up Python 3.10
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
-    - name: Cache Buildozer global directory
+    - name: Cache Buildozer directories
       uses: actions/cache@v3
       with:
-        path: ~/.buildozer
-        key: buildozer-${{ hashFiles('buildozer.spec') }}
+        path: |
+          .buildozer
+          ~/.buildozer
+        key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+        restore-keys: |
+          ${{ runner.os }}-buildozer-
 
     - name: Install system dependencies
       run: |
-        sudo apt-get update
+        sudo apt-get update -qq
         sudo apt-get install -y \
-          git zip unzip openjdk-17-jdk wget \
-          autoconf libtool pkg-config zlib1g-dev \
-          libncurses5-dev libncursesw5-dev \
-          cmake libffi-dev libssl-dev \
-          build-essential ccache libltdl-dev \
-          python3-dev
+          openjdk-17-jdk \
+          build-essential \
+          git \
+          zip \
+          unzip \
+          python3-pip \
+          autoconf \
+          libtool \
+          pkg-config \
+          zlib1g-dev \
+          libncurses5-dev \
+          libncursesw5-dev \
+          cmake \
+          libffi-dev \
+          libssl-dev \
+          ccache \
+          python3-dev \
+          libsqlite3-dev \
+          sqlite3 \
+          bzip2 \
+          libbz2-dev \
+          libreadline-dev \
+          llvm \
+          libncursesw5-dev \
+          xz-utils \
+          tk-dev \
+          libxml2-dev \
+          libxmlsec1-dev \
+          liblzma-dev
 
-    - name: Install Buildozer and dependencies
+    - name: Install Python dependencies
       run: |
-        pip install --upgrade pip setuptools wheel
-        pip install buildozer cython==0.29.33
-        pip install kivy
+        python -m pip install --upgrade pip setuptools wheel
+        pip install --upgrade Cython==0.29.33
+        pip install buildozer
 
-    - name: Make buildozer directory writable
+    - name: Accept Android licenses
       run: |
-        mkdir -p ~/.buildozer
-        chmod -R 777 ~/.buildozer || true
+        mkdir -p ~/.android
+        echo "export ANDROID_SDK_ROOT=/usr/lib/android-sdk" >> ~/.bashrc
+        yes | sudo apt-get install -y google-android-platform-tools-installer || true
 
-    - name: Build APK with Buildozer
+    - name: Build with Buildozer
       run: |
-        buildozer -v android debug 2>&1 | tee build.log
-      continue-on-error: false
+        yes | buildozer -v android debug 2>&1 | tee build.log || {
+          echo "Build failed! Showing last 100 lines of log:"
+          tail -100 build.log
+          exit 1
+        }
 
-    - name: Upload build log on failure
-      if: failure()
+    - name: Verify APK was created
+      run: |
+        if [ -d "bin" ]; then
+          echo "✓ bin directory exists"
+          ls -lah bin/
+          if ls bin/*.apk 1> /dev/null 2>&1; then
+            echo "✓ APK file found!"
+            for apk in bin/*.apk; do
+              echo "APK: $apk ($(du -h "$apk" | cut -f1))"
+            done
+          else
+            echo "✗ No APK files found in bin/"
+            exit 1
+          fi
+        else
+          echo "✗ bin directory not created"
+          exit 1
+        fi
+
+    - name: Upload build log (always)
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: build-log
         path: build.log
         retention-days: 7
 
-    - name: List bin directory
-      run: |
-        echo "Contents of bin directory:"
-        ls -lah bin/ || echo "bin directory not found"
-
-    - name: Upload APK artifact
+    - name: Upload APK
       if: success()
       uses: actions/upload-artifact@v4
       with:
@@ -74,7 +120,7 @@ jobs:
         path: bin/*.apk
         retention-days: 30
 
-    - name: Create Release (on tag)
+    - name: Create GitHub Release
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1
       with:
