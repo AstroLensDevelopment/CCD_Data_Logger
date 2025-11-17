@@ -38,7 +38,7 @@ jobs:
 
     - name: Build APK with Buildozer
       run: |
-        buildozer android debug
+        yes | buildozer android debug
       env:
         ANDROID_SDK_ROOT: /opt/android-sdk
         ANDROID_HOME: /opt/android-sdk
