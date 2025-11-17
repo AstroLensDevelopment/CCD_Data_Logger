@@ -79,28 +79,62 @@ jobs:
 
     - name: Build with Buildozer
       run: |
-        yes | buildozer -v android debug 2>&1 | tee build.log || {
-          echo "Build failed! Showing last 100 lines of log:"
-          tail -100 build.log
+        yes | buildozer -v android debug 2>&1 | tee build.log
+        BUILD_EXIT=$?
+        echo "Buildozer exit code: $BUILD_EXIT"
+        if [ $BUILD_EXIT -ne 0 ]; then
+          echo "❌ Buildozer failed with exit code $BUILD_EXIT"
+          echo "Last 150 lines of build log:"
+          tail -150 build.log
           exit 1
-        }
+        fi
+        echo "✓ Buildozer completed"
+
+    - name: Search for APK files
+      run: |
+        echo "Searching for APK files in entire project..."
+        find . -name "*.apk" -type f 2>/dev/null || echo "No APK files found anywhere"
+        echo ""
+        echo "Checking .buildozer directory:"
+        ls -lah .buildozer/android/platform/build-*/dists/*/build/outputs/apk/debug/ 2>/dev/null || echo "Standard APK location not found"
+        echo ""
+        echo "Contents of bin directory:"
+        ls -lah bin/ 2>/dev/null || echo "bin directory doesn't exist"
+        echo ""
+        echo "Contents of .buildozer/android/platform/:"
+        ls -lah .buildozer/android/platform/ 2>/dev/null || echo ".buildozer/android/platform/ doesn't exist"
+
+    - name: Copy APK to bin directory
+      run: |
+        mkdir -p bin
+        APK_FOUND=0
+        
+        # Search for APK in buildozer output directories
+        for apk in $(find .buildozer -name "*.apk" -type f 2>/dev/null); do
+          echo "Found APK: $apk"
+          cp "$apk" bin/
+          APK_FOUND=1
+        done
+        
+        if [ $APK_FOUND -eq 0 ]; then
+          echo "❌ No APK files found in .buildozer directory"
+          echo "Showing end of build log:"
+          tail -200 build.log
+          exit 1
+        fi
+        
+        echo "✓ APK copied to bin/"
+        ls -lah bin/
 
     - name: Verify APK was created
       run: |
-        if [ -d "bin" ]; then
-          echo "✓ bin directory exists"
-          ls -lah bin/
-          if ls bin/*.apk 1> /dev/null 2>&1; then
-            echo "✓ APK file found!"
-            for apk in bin/*.apk; do
-              echo "APK: $apk ($(du -h "$apk" | cut -f1))"
-            done
-          else
-            echo "✗ No APK files found in bin/"
-            exit 1
-          fi
+        if ls bin/*.apk 1> /dev/null 2>&1; then
+          echo "✓ APK file found!"
+          for apk in bin/*.apk; do
+            echo "APK: $apk ($(du -h "$apk" | cut -f1))"
+          done
         else
-          echo "✗ bin directory not created"
+          echo "❌ No APK files in bin/"
           exit 1
         fi
 
