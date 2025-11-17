@@ -1,0 +1,17 @@
+# CCD Data Logger - Python Requirements
+
+# Kivy framework for mobile UI
+kivy==2.2.1
+
+# Android support (only needed for Android build)
+# These are automatically included by buildozer for Android
+# pyjnius - Java/Android integration
+# android - Android-specific APIs
+
+# USB serial support for Android
+# usb4a - USB support on Android
+# usbserial4a - Serial communication over USB on Android
+
+# Desktop testing (optional, for development on desktop)
+# Uncomment these for desktop development/testing
+# pyserial==3.5
