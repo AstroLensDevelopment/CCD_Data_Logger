@@ -5,14 +5,15 @@ Supports Bluetooth SPP and USB Serial connections to ESP32/STM32/TCD1304 CCD
 import os
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.button import Button
+from kivy.uix.button import Button, ButtonBehavior
 from kivy.uix.label import Label
 from kivy.uix.spinner import Spinner
 from kivy.uix.textinput import TextInput
 from kivy.uix.scrollview import ScrollView
 from kivy.clock import Clock
-from kivy.utils import platform
-from kivy.properties import StringProperty, BooleanProperty
+from kivy.utils import platform, get_color_from_hex
+from kivy.properties import StringProperty, BooleanProperty, ListProperty
+from kivy.graphics import Color, RoundedRectangle
 from datetime import datetime
 import threading
 
@@ -20,6 +21,42 @@ from bluetooth_manager import BluetoothManager
 from usb_manager import USBManager
 from data_handler import DataHandler
 from stm32_controller import STM32Controller
+
+
+class RoundedButton(Button):
+    """Custom button with rounded corners and custom colors"""
+    
+    def __init__(self, **kwargs):
+        super(RoundedButton, self).__init__(**kwargs)
+        
+        # Define colors
+        self.normal_color = get_color_from_hex('#fecb48')
+        self.pressed_color = get_color_from_hex('#ffc531')
+        self.disabled_color = get_color_from_hex('#808080')  # Gray for disabled
+        
+        self.background_normal = ''
+        self.background_down = ''
+        self.background_disabled_normal = ''
+        self.background_color = (0, 0, 0, 0)  # Transparent
+        
+        # Set text color to black
+        self.color = (0, 0, 0, 1)
+        
+        self.bind(pos=self.update_canvas, size=self.update_canvas, 
+                  disabled=self.update_canvas, state=self.update_canvas)
+        self.update_canvas()
+    
+    def update_canvas(self, *args):
+        self.canvas.before.clear()
+        with self.canvas.before:
+            if self.disabled:
+                Color(*self.disabled_color)
+            elif self.state == 'down':
+                Color(*self.pressed_color)
+            else:
+                Color(*self.normal_color)
+            
+            RoundedRectangle(pos=self.pos, size=self.size, radius=[15])
 
 
 class CCDDataLoggerApp(App):
@@ -42,7 +79,7 @@ class CCDDataLoggerApp(App):
         self.status_label = Label(
             text=self.status_text,
             size_hint=(1, 0.1),
-            color=(1, 1, 1, 1)
+            color=get_color_from_hex('#ffc200')  # Orange when disconnected
         )
         self.root.add_widget(self.status_label)
         
@@ -82,7 +119,7 @@ class CCDDataLoggerApp(App):
         )
         device_layout.add_widget(self.device_spinner)
         
-        self.scan_button = Button(text="Scan", size_hint=(0.2, 1))
+        self.scan_button = RoundedButton(text="Scan", size_hint=(0.2, 1))
         self.scan_button.bind(on_press=self.scan_devices)
         device_layout.add_widget(self.scan_button)
         self.root.add_widget(device_layout)
@@ -90,11 +127,11 @@ class CCDDataLoggerApp(App):
         # Connect/Disconnect buttons
         button_layout = BoxLayout(size_hint=(1, 0.1), spacing=10)
         
-        self.connect_button = Button(text="Connect")
+        self.connect_button = RoundedButton(text="Connect")
         self.connect_button.bind(on_press=self.connect_device)
         button_layout.add_widget(self.connect_button)
         
-        self.disconnect_button = Button(text="Disconnect", disabled=True)
+        self.disconnect_button = RoundedButton(text="Disconnect", disabled=True)
         self.disconnect_button.bind(on_press=self.disconnect_device)
         button_layout.add_widget(self.disconnect_button)
         self.root.add_widget(button_layout)
@@ -111,7 +148,7 @@ class CCDDataLoggerApp(App):
         )
         exposure_layout.add_widget(self.exposure_input)
         
-        self.apply_exposure_button = Button(text="Apply", size_hint=(0.2, 1), disabled=True)
+        self.apply_exposure_button = RoundedButton(text="Apply", size_hint=(0.2, 1), disabled=True)
         self.apply_exposure_button.bind(on_press=self.apply_exposure)
         exposure_layout.add_widget(self.apply_exposure_button)
         self.root.add_widget(exposure_layout)
@@ -140,15 +177,15 @@ class CCDDataLoggerApp(App):
         # Data controls
         data_layout = BoxLayout(size_hint=(1, 0.1), spacing=10)
         
-        self.start_capture_button = Button(text="Start Capture", disabled=True)
+        self.start_capture_button = RoundedButton(text="Start Capture", disabled=True)
         self.start_capture_button.bind(on_press=self.start_capture)
         data_layout.add_widget(self.start_capture_button)
         
-        self.stop_capture_button = Button(text="Stop Capture", disabled=True)
+        self.stop_capture_button = RoundedButton(text="Stop Capture", disabled=True)
         self.stop_capture_button.bind(on_press=self.stop_capture)
         data_layout.add_widget(self.stop_capture_button)
         
-        self.save_button = Button(text="Save Data", disabled=True)
+        self.save_button = RoundedButton(text="Save Data", disabled=True)
         self.save_button.bind(on_press=self.save_data)
         data_layout.add_widget(self.save_button)
         self.root.add_widget(data_layout)
@@ -197,6 +234,7 @@ class CCDDataLoggerApp(App):
             devices = self.bt_manager.scan_devices()
             if devices:
                 self.device_spinner.values = list(devices.keys())
+                self.status_label.color = (1, 1, 1, 1)  # White when devices found
                 self.update_display(f"Found {len(devices)} Bluetooth devices")
             else:
                 self.update_display("No Bluetooth devices found")
@@ -205,6 +243,7 @@ class CCDDataLoggerApp(App):
             devices = self.usb_manager.scan_devices()
             if devices:
                 self.device_spinner.values = devices
+                self.status_label.color = (1, 1, 1, 1)  # White when devices found
                 self.update_display(f"Found {len(devices)} USB devices")
             else:
                 self.update_display("No USB devices found")
@@ -236,6 +275,7 @@ class CCDDataLoggerApp(App):
         if success:
             self.is_connected = True
             self.status_text = "Connected"
+            self.status_label.color = (1, 1, 1, 1)  # White when connected
             self.update_display("Connected successfully!")
             self.connect_button.disabled = True
             self.disconnect_button.disabled = False
@@ -261,6 +301,7 @@ class CCDDataLoggerApp(App):
         
         self.is_connected = False
         self.status_text = "Disconnected"
+        self.status_label.color = get_color_from_hex('#ffc200')  # Orange when disconnected
         self.update_display("Disconnected")
         
         self.connect_button.disabled = False
