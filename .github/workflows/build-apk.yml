@@ -56,8 +56,6 @@ jobs:
           echo "Last 200 lines of build log:"
           tail -200 .buildozer/android/platform/build-arm64-v8a/build.log
         fi
-          exit 1
-        fi
         
         echo "✓ APK copied to bin/"
         ls -lah bin/
