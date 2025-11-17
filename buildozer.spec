@@ -45,16 +45,19 @@ fullscreen = 0
 android.permissions = BLUETOOTH,BLUETOOTH_ADMIN,BLUETOOTH_CONNECT,BLUETOOTH_SCAN,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,INTERNET
 
 # (int) Target Android API, should be as high as possible.
-android.api = 33
+android.api = 31
 
 # (int) Minimum API your APK will support.
 android.minapi = 21
 
 # (int) Android SDK version to use
-android.sdk = 33
+android.sdk = 31
 
 # (str) Android NDK version to use
 android.ndk = 25b
+
+# (str) Gradle version to use
+p4a.gradle_version = 8.3
 
 # (bool) Use --private data storage (True) or --dir public storage (False)
 #android.private_storage = True
@@ -163,7 +166,16 @@ android.accept_sdk_license = True
 #android.copy_libs = 1
 
 # (str) The Android arch to build for, choices: armeabi-v7a, arm64-v8a, x86, x86_64
-android.archs = arm64-v8a, armeabi-v7a
+android.archs = arm64-v8a
+
+# (str) python-for-android fork to use, defaults to upstream (kivy)
+p4a.fork = kivy
+
+# (str) python-for-android branch to use, defaults to master
+p4a.branch = master
+
+# (str) Bootstrap to use for android builds
+p4a.bootstrap = sdl2
 
 # (int) overrides automatic versionCode computation (used in build.gradle)
 # this is not the same as app version and should only be edited if you know what you're doing

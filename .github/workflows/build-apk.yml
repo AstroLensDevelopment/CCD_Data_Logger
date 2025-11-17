@@ -35,7 +35,7 @@ jobs:
       run: |
         sudo apt-get update -qq
         sudo apt-get install -y \
-          openjdk-17-jdk \
+          openjdk-11-jdk \
           build-essential \
           git \
           zip \
@@ -64,12 +64,25 @@ jobs:
           libxml2-dev \
           libxmlsec1-dev \
           liblzma-dev
+        
+        # Set Java 11 as default
+        sudo update-alternatives --set java /usr/lib/jvm/java-11-openjdk-amd64/bin/java
+        sudo update-alternatives --set javac /usr/lib/jvm/java-11-openjdk-amd64/bin/javac
+        export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+        echo "JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64" >> $GITHUB_ENV
 
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip setuptools wheel
         pip install --upgrade Cython==0.29.33
         pip install buildozer
+
+    - name: Setup Gradle
+      run: |
+        mkdir -p ~/.gradle
+        echo "org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m" >> ~/.gradle/gradle.properties
+        echo "org.gradle.daemon=false" >> ~/.gradle/gradle.properties
+        echo "android.useAndroidX=true" >> ~/.gradle/gradle.properties
 
     - name: Accept Android licenses
       run: |
