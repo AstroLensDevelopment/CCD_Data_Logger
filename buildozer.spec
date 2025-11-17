@@ -20,7 +20,7 @@ version = 1.0.0
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3,kivy==2.2.1,pyjnius
+requirements = python3,kivy==2.1.0,pyjnius,hostpython3
 
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
@@ -56,8 +56,8 @@ android.sdk = 31
 # (str) Android NDK version to use
 android.ndk = 25b
 
-# (str) Gradle version to use
-p4a.gradle_version = 8.3
+# (str) Gradle version to use - let p4a choose compatible version
+#p4a.gradle_version = 8.3
 
 # (bool) Use --private data storage (True) or --dir public storage (False)
 #android.private_storage = True
@@ -172,7 +172,7 @@ android.archs = arm64-v8a
 p4a.fork = kivy
 
 # (str) python-for-android branch to use, defaults to master
-p4a.branch = master
+p4a.branch = develop
 
 # (str) Bootstrap to use for android builds
 p4a.bootstrap = sdl2
