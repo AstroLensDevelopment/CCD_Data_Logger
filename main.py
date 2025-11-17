@@ -45,7 +45,8 @@ class RoundedButton(Button):
               disabled=self.update_canvas, state=self.update_canvas)
         self.update_canvas()
     
-    def update_canvas(self, *args):self.canvas.before.clear()
+    def update_canvas(self, *args):
+        self.canvas.before.clear()
         with self.canvas.before:
             if self.disabled:
                 Color(*self.disabled_color)
@@ -53,7 +54,7 @@ class RoundedButton(Button):
                 Color(*self.pressed_color)
             else:
                 Color(*self.normal_color)
-            
+
             RoundedRectangle(pos=self.pos, size=self.size, radius=[15])
         # Text color: black on yellow/pressed, white on disabled
         if self.disabled:
@@ -572,11 +573,31 @@ class CCDDataLoggerApp(App):
         
         # Determine save path based on platform
         if platform == 'android':
-            from android.permissions import request_permissions, Permission
-            request_permissions([Permission.WRITE_EXTERNAL_STORAGE, Permission.READ_EXTERNAL_STORAGE])
-            # Save to app's external storage directory
-            from android.storage import app_storage_path
-            save_path = os.path.join(app_storage_path(), filename)
+            # imports may not be resolvable on desktop; guard them
+            try:
+                from android.permissions import request_permissions, Permission  # type: ignore[import]
+            except Exception:
+                request_permissions = None
+                Permission = None
+
+            if request_permissions and Permission:
+                try:
+                    request_permissions([Permission.WRITE_EXTERNAL_STORAGE, Permission.READ_EXTERNAL_STORAGE])
+                except Exception:
+                    pass
+
+            try:
+                from android.storage import app_storage_path  # type: ignore[import]
+            except Exception:
+                app_storage_path = None
+
+            if app_storage_path:
+                try:
+                    save_path = os.path.join(app_storage_path(), filename)
+                except Exception:
+                    save_path = os.path.join(os.getcwd(), filename)
+            else:
+                save_path = os.path.join(os.getcwd(), filename)
         else:
             # Save to current directory for desktop testing
             save_path = os.path.join(os.getcwd(), filename)
