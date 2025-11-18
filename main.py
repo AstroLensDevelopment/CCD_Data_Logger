@@ -180,6 +180,40 @@ class RoundedSpinnerOption(SpinnerOption):
             self.color = (0, 0, 0, 1)
 
 
+class RoundedTextInput(TextInput):
+    """TextInput with rounded corners and plain white background"""
+    def __init__(self, **kwargs):
+        # Remove background images before calling super
+        kwargs['background_normal'] = ''
+        kwargs['background_active'] = ''
+        
+        super(RoundedTextInput, self).__init__(**kwargs)
+        
+        # Set colors for plain white background with true-black text
+        self.background_color = (1, 1, 1, 1)  # Solid white fill
+        self.foreground_color = (0, 0, 0, 1)  # Black text even when focused
+        self.disabled_foreground_color = (0, 0, 0, 1)  # Keep black when readonly/disabled
+        self.cursor_color = (0, 0, 0, 1)  # Black cursor
+        
+        # Add padding so text doesn't touch edges
+        self.padding = [15, 21, 10, 10]
+        
+        # Bind to update canvas when position or size changes
+        self.bind(pos=self.update_canvas, size=self.update_canvas)
+        self.update_canvas()
+    
+    def update_canvas(self, *args):
+        # Draw the rounded rectangle as background
+        self.canvas.before.clear()
+        with self.canvas.before:
+            Color(1, 1, 1, 0)  # Solid white background
+            RoundedRectangle(pos=self.pos, size=self.size, radius=[15])
+            # Draw a subtle border for definition
+            Color(1, 1, 1, 1)  # Light gray border
+            from kivy.graphics import Line
+            Line(rounded_rectangle=(self.pos[0], self.pos[1], self.size[0], self.size[1], 15), width=1)
+
+
 class CCDDataLoggerApp(App):
     status_text = StringProperty("Disconnected")
     is_connected = BooleanProperty(False)
@@ -205,17 +239,15 @@ class CCDDataLoggerApp(App):
         # Main layout
         self.root = BoxLayout(orientation='vertical', padding=10, spacing=10)
         
-        # Status bar
-        # initial status color: nothing connected -> #ffc200
+        # Status bar (initialized here; added to layout later for better placement)
         self.status_label = Label(
             text=self.status_text,
-            size_hint=(1, 0.1),
+            size_hint=(1, 1),
             color=get_color_from_hex('#ffc200')
         )
-        self.root.add_widget(self.status_label)
         
         # Connection type selector
-        connection_layout = BoxLayout(size_hint=(1, 0.1), spacing=10)
+        connection_layout = BoxLayout(size_hint=(1, 0.05), spacing=10)
         connection_layout.add_widget(Label(text="Connection:", size_hint=(0.3, 1)))
         
         self.connection_spinner = RoundedSpinner(
@@ -233,7 +265,7 @@ class CCDDataLoggerApp(App):
         self.root.add_widget(connection_layout)
         
         # Firmware selector (for STM32)
-        firmware_layout = BoxLayout(size_hint=(1, 0.1), spacing=10)
+        firmware_layout = BoxLayout(size_hint=(1, 0.05), spacing=10)
         firmware_layout.add_widget(Label(text="Firmware:", size_hint=(0.3, 1)))
         
         self.firmware_spinner = RoundedSpinner(
@@ -251,7 +283,7 @@ class CCDDataLoggerApp(App):
         self.root.add_widget(firmware_layout)
         
         # Device selector
-        device_layout = BoxLayout(size_hint=(1, 0.1), spacing=10)
+        device_layout = BoxLayout(size_hint=(1, 0.05), spacing=10)
         device_layout.add_widget(Label(text="Device:", size_hint=(0.3, 1)))
         
         self.device_spinner = RoundedSpinner(
@@ -272,7 +304,7 @@ class CCDDataLoggerApp(App):
         self.root.add_widget(device_layout)
         
         # Connect/Disconnect buttons
-        button_layout = BoxLayout(size_hint=(1, 0.1), spacing=10)
+        button_layout = BoxLayout(size_hint=(1, 0.05), spacing=10)
         
         self.connect_button = RoundedButton(text="Connect")
         self.connect_button.bind(on_press=self.connect_device)
@@ -282,12 +314,25 @@ class CCDDataLoggerApp(App):
         self.disconnect_button.bind(on_press=self.disconnect_device)
         button_layout.add_widget(self.disconnect_button)
         self.root.add_widget(button_layout)
+
+        # Status label positioning between connection buttons and exposure controls
+        # Combine status and timing in one centered horizontal layout
+        status_layout = BoxLayout(size_hint=(1, 0.02), padding=(5, 0, 5, 0), spacing=10)
+        status_layout.add_widget(self.status_label)
+        # Timing info display (moved here to be next to status)
+        self.timing_label = Label(
+            text="SH: -- | ICG: -- | Frame: --",
+            size_hint=(1, 1),
+            font_size='12sp'
+        )
+        status_layout.add_widget(self.timing_label)
+        self.root.add_widget(status_layout)
         
         # STM32 Exposure Time control
-        exposure_layout = BoxLayout(size_hint=(1, 0.1), spacing=10)
+        exposure_layout = BoxLayout(size_hint=(1, 0.05), spacing=10)
         exposure_layout.add_widget(Label(text="Exposure (ms):", size_hint=(0.3, 1)))
         
-        self.exposure_input = TextInput(
+        self.exposure_input = RoundedTextInput(
             text='10',
             multiline=False,
             input_filter='float',
@@ -301,7 +346,7 @@ class CCDDataLoggerApp(App):
         self.root.add_widget(exposure_layout)
         
         # STM32 Averages control
-        averages_layout = BoxLayout(size_hint=(1, 0.1), spacing=10)
+        averages_layout = BoxLayout(size_hint=(1, 0.05), spacing=10)
         averages_layout.add_widget(Label(text="Averages:", size_hint=(0.3, 1)))
         
         self.averages_spinner = RoundedSpinner(
@@ -314,16 +359,8 @@ class CCDDataLoggerApp(App):
         averages_layout.add_widget(self.averages_spinner)
         self.root.add_widget(averages_layout)
         
-        # Timing info display
-        self.timing_label = Label(
-            text="SH: -- | ICG: -- | Frame: --",
-            size_hint=(1, 0.08),
-            font_size='12sp'
-        )
-        self.root.add_widget(self.timing_label)
-        
         # Data controls
-        data_layout = BoxLayout(size_hint=(1, 0.1), spacing=10)
+        data_layout = BoxLayout(size_hint=(1, 0.05), spacing=10)
         
         self.start_capture_button = OverlayRoundedButton(text="Start Capture", disabled=True)
         self.start_capture_button.bind(on_press=self.start_capture)
@@ -337,9 +374,9 @@ class CCDDataLoggerApp(App):
         self.root.add_widget(data_layout)
         
         # Filename input
-        filename_layout = BoxLayout(size_hint=(1, 0.1), spacing=10)
+        filename_layout = BoxLayout(size_hint=(1, 0.05), spacing=10)
         filename_layout.add_widget(Label(text="Filename:", size_hint=(0.3, 1)))
-        self.filename_input = TextInput(
+        self.filename_input = RoundedTextInput(
             text=f"ccd_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.dat",
             multiline=False,
             size_hint=(0.7, 1)
@@ -347,24 +384,37 @@ class CCDDataLoggerApp(App):
         filename_layout.add_widget(self.filename_input)
         self.root.add_widget(filename_layout)
         
-        # Data display
-        scroll_view = ScrollView(size_hint=(1, 0.4))
-        self.data_display = TextInput(
+        # Data display (limited height with ScrollView so it cannot grow above other controls)
+        from kivy.uix.scrollview import ScrollView
+        scroll_view = ScrollView(size_hint=(1, 0.2))
+        self.data_display = RoundedTextInput(
             text="Waiting for data...\n",
             multiline=True,
             readonly=True,
             size_hint_y=None
         )
-        self.data_display.bind(minimum_height=self.data_display.setter('height'))
+
+        # Ensure the text widget height is at least its content height but never exceeds the scroll viewport
+        def _cap_height(inst, value):
+            # value is the minimum_height of the TextInput (content height)
+            # cap to the scroll_view height so it doesn't grow beyond other controls
+            inst.height = max(value, scroll_view.height)
+
+        # When content height changes, update height (but cap to scroll viewport height)
+        self.data_display.bind(minimum_height=_cap_height)
+
+        # Also ensure the console height updates if the scroll_view size changes (e.g., on window resize)
+        def _on_scroll_resize(inst, value):
+            # cap current height to new scroll_view height
+            if self.data_display.minimum_height < scroll_view.height:
+                self.data_display.height = scroll_view.height
+            else:
+                self.data_display.height = self.data_display.minimum_height
+
+        scroll_view.bind(height=_on_scroll_resize)
+
         scroll_view.add_widget(self.data_display)
         self.root.add_widget(scroll_view)
-        
-        # Stats display
-        self.stats_label = Label(
-            text="Samples: 0 | Last update: --",
-            size_hint=(1, 0.1)
-        )
-        self.root.add_widget(self.stats_label)
         
         # Schedule status updates
         Clock.schedule_interval(self.update_status, 0.5)
@@ -557,15 +607,6 @@ class CCDDataLoggerApp(App):
 
         # Schedule UI updates on the main Kivy thread
         Clock.schedule_once(_finish_and_update, 0)
-    
-    def update_data_display(self, text):
-        """Update data display on main thread"""
-        self.data_display.text = text
-        
-        # Update stats
-        sample_count = self.data_handler.get_sample_count()
-        last_update = self.data_handler.get_last_update_time()
-        self.stats_label.text = f"Samples: {sample_count} | Last update: {last_update}"
     
     def save_data(self, instance):
         """Save captured data to file"""
