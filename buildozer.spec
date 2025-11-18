@@ -1,10 +1,10 @@
 [app]
 
 # (str) Title of your application
-title = CCD Data Logger
+title = pySPEC
 
 # (str) Package name
-package.name = ccddatalogger
+package.name = pyspec
 
 # (str) Package domain (needed for android/ios packaging)
 package.domain = org.ccdlogger
@@ -30,10 +30,10 @@ requirements = python3,kivy==2.1.0,pyjnius
 #garden_requirements =
 
 # (str) Presplash of the application
-#presplash.filename = %(source.dir)s/data/presplash.png
+presplash.filename = %(source.dir)s/assets/icon.png
 
 # (str) Icon of the application
-#icon.filename = %(source.dir)s/data/icon.png
+icon.filename = %(source.dir)s/assets/icon.png
 
 # (str) Supported orientation (landscape, sensorLandscape, portrait or all)
 orientation = portrait

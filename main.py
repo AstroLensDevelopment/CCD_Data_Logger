@@ -219,7 +219,7 @@ class CCDDataLoggerApp(App):
     is_connected = BooleanProperty(False)
     
     def build(self):
-        self.title = "CCD Data Logger"
+        self.title = "pySPEC"
         # Set default window size to 19.5:9 aspect ratio on desktop
         # (has no effect on Android fullscreen)
         if platform != 'android':
